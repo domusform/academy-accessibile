@@ -1122,6 +1122,21 @@ const NOTA = (function () {
   });
   const playUI = (str, bpm) => `<div class="play"><button type="button" class="btn-play" data-play="${esc(str)}" data-bpm="${+bpm || 80}">▶ Ascolta</button><span>Ascolto con suono sintetico</span></div>`;
 
+  /* Leggi a voce: la voce del dispositivo legge la descrizione del pentagramma */
+  let SAYB = null;
+  const SAYT = '🗣 Leggi a voce';
+  function stopSay() { try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) { } if (SAYB) { SAYB.textContent = SAYT; SAYB = null; } }
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-say]'); if (!b) return;
+    if (b === SAYB) { stopSay(); return; }
+    stopSay();
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') { b.textContent = 'Voce non disponibile su questo dispositivo'; return; }
+    const u = new SpeechSynthesisUtterance(b.getAttribute('data-say')); u.lang = 'it-IT'; u.rate = .9;
+    u.onend = u.onerror = () => { if (SAYB === b) { SAYB = null; b.textContent = SAYT; } };
+    SAYB = b; b.textContent = '■ Stop'; window.speechSynthesis.speak(u);
+  });
+  const sayUI = (str, hide) => '<div class="play"><button type="button" class="btn-play btn-say" data-say="' + esc(NOTA.describe(str, !!hide)) + '">' + SAYT + '</button><span>Con la voce del dispositivo</span></div>';
+
   /* ---------- Kids: suoni, animazioni e lavagna ---------- */
   let KC = null, KBEAT = null, BD = null;
   function kctx() {
@@ -1298,7 +1313,7 @@ const NOTA = (function () {
   function boardEx(s) {
     const e = s.e;
     let h = '<div class="bd-ex"><p class="bd-no">Esercizio ' + (s.i + 1) + ' di ' + s.n + ' · in aula</p><div class="bd-q">' + md(e.q) + '</div>';
-    if (e.staff) h += '<figure class="fig">' + staff(e.staff, 'Pentagramma dell\'esercizio ' + (s.i + 1), hidesPitch(e)) + '</figure>' + (a11yOn() ? playUI(e.staff, 80) : '');
+    if (e.staff) h += '<figure class="fig">' + staff(e.staff, 'Pentagramma dell\'esercizio ' + (s.i + 1), hidesPitch(e)) + '</figure>' + (a11yOn() ? playUI(e.staff, 80) + sayUI(e.staff, hidesPitch(e)) : '');
     if (e.tipo === 'scelta') h += '<div class="bd-opts">' + e.opz.map((o, j) => '<button type="button" class="bd-opt" data-bd="opt" data-j="' + j + '"><span class="opt-l">' + ('ABCD'[j] || (j + 1)) + '</span><span>' + esc(o) + '</span></button>').join('') + '</div>';
     h += '<div class="bd-solbar"><button type="button" class="btn ghost" data-bd="sol">👁 Mostra la soluzione (S)</button></div><div class="bd-sol" hidden>' + (e.tipo === 'scelta' ? '<p><strong>Risposta: ' + esc('ABCD'[e.ok] || '') + '.</strong></p>' : '') + md(e.sol || '') + '</div></div>';
     return h;
@@ -1369,7 +1384,7 @@ const NOTA = (function () {
   function blockHTML(b) {
     let h = `<section class="blk"><h3>${esc(b.h)}</h3>${md(b.p || '')}`;
     if (b.anim) h += animHTML(b.anim);
-    if (b.staff) h += `<figure class="fig">${staff(b.staff, b.cap || b.h)}${b.cap ? `<figcaption>${esc(b.cap)}</figcaption>` : ''}</figure>` + (a11yOn() && !b.play ? playUI(b.staff, 80) : '');
+    if (b.staff) h += `<figure class="fig">${staff(b.staff, b.cap || b.h)}${b.cap ? `<figcaption>${esc(b.cap)}</figcaption>` : ''}</figure>` + (a11yOn() ? (b.play ? '' : playUI(b.staff, 80)) + sayUI(b.staff, false) : '');
     if (b.keys) h += keyboard();
     if (Array.isArray(b.pir) && b.pir.length) h += pyramid(b.pir);
     if (b.circle) h += circleFifths();
@@ -1403,7 +1418,7 @@ const NOTA = (function () {
     const k = exKey(ch, tab, i);
     let h = '<article class="ex" data-k="' + esc(k) + '"><div class="ex-n">' + (i + 1) + '</div><div class="ex-b">';
     h += '<div class="ex-q">' + md(e.q) + '</div>';
-    if (e.staff) h += '<figure class="fig">' + staff(e.staff, 'Pentagramma dell\'esercizio ' + (i + 1), hidesPitch(e)) + '</figure>' + (a11yOn() ? playUI(e.staff, 80) : '');
+    if (e.staff) h += '<figure class="fig">' + staff(e.staff, 'Pentagramma dell\'esercizio ' + (i + 1), hidesPitch(e)) + '</figure>' + (a11yOn() ? playUI(e.staff, 80) + sayUI(e.staff, hidesPitch(e)) : '');
     if (e.tipo === 'scelta') {
       const r = res[k];
       h += '<div class="opts" role="group" aria-label="Risposte">' + e.opz.map((o, j) => {
@@ -2083,7 +2098,7 @@ const NOTA = (function () {
   let lastRK = '';
   function announceRoute() {
     const k = !SESS ? 'login' : route.v + '|' + route.i + '|' + route.tab + (pwOpen ? '|pw' : '');
-    if (k === lastRK) return; lastRK = k;
+    if (k === lastRK) return; lastRK = k; stopSay();
     if (!a11yOn()) return;
     const h = document.querySelector('#main h1, #main h2'); const nm = h ? h.textContent.trim() : 'Domus Form Academy';
     document.title = nm + ' · Domus Form Academy';
